@@ -6,8 +6,10 @@ import DocumentPreview from './components/DocumentPreview.jsx';
 
 const MAX_FILE_MB = 15;
 const REQUEST_CONCURRENCY = 5;          // best reliable value at current API tier (measured); raise after tier upgrade
-const WHOLE_PDF_MAX_BYTES = 2.7 * 1024 * 1024; // below this, send scanned PDF whole (fast)
-const SCANNED_PAGES_PER_CHUNK = 3;      // pages per native sub-PDF (kept under Vercel's 60s/call limit)
+const WHOLE_PDF_MAX_BYTES = 2.7 * 1024 * 1024; // below this, a tiny PDF may be sent whole
+const WHOLE_PDF_MAX_PAGES = 2;          // ...but only up to 2 pages — a dense page OCRs in ~22s,
+                                        // so 2 pages (~43s) stays under Vercel's 60s function limit
+const SCANNED_PAGES_PER_CHUNK = 2;      // pages per native sub-PDF; measured: 3 dense pages = ~65s (>60s → killed)
 
 const STEPS = [
   'מחלץ וממיר קבצים...',
@@ -171,8 +173,8 @@ export default function App() {
           continue;
         }
 
-        // Scanned + small enough → send the whole PDF in ONE fast native call.
-        if (f.size <= WHOLE_PDF_MAX_BYTES) {
+        // Scanned + tiny (≤2 pages) → send whole in ONE native call (stays under 60s).
+        if (numPages <= WHOLE_PDF_MAX_PAGES && f.size <= WHOLE_PDF_MAX_BYTES) {
           const base64 = await fileToBase64(f);
           units.push([{ name: f.name, type: 'scanned', base64 }]);
           continue;

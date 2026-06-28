@@ -9,6 +9,10 @@ export const config = {
   api: { bodyParser: { sizeLimit: '50mb' } },
 };
 
+// Vercel kills functions at 10s by default (Hobby) — raise to the 60s max so a
+// slow OCR call has room to finish. Each unit is page-capped to stay under this.
+export const maxDuration = 60;
+
 const MAX_CONCURRENT = 5;
 
 // ── Single-file processors ────────────────────────────────────────────────────

@@ -10,8 +10,23 @@ export default function DocumentPreview({ documents, warnings, onDownload, onRes
 
   // Objective readability of each document's OCR output (high | partial | low).
   const readability = documents.map((d) => assessReadability(d.text));
-  const lowReadIdx = readability
-    .map((r, i) => (r.level === 'low' ? i : -1))
+
+  // Reasons a document warrants a manual check against the source.
+  // A header-less fragment (e.g. a record cut across a chunk boundary) comes
+  // back with neither date nor institution — flag it for review rather than
+  // silently merging, which could mis-attribute one provider's note to another.
+  const reviewReasons = documents.map((d, i) => {
+    const reasons = [];
+    if (readability[i].level === 'low') reasons.push('קריאות נמוכה');
+    const noDate = !d.date || d.date === 'לא ידוע';
+    const noInst = !d.institution || d.institution === 'לא ידוע';
+    if (noDate && noInst && (d.text || '').trim().length > 40) {
+      reasons.push('ללא תאריך/מוסד — ייתכן מקטע שנחתך');
+    }
+    return reasons;
+  });
+  const reviewIdx = reviewReasons
+    .map((r, i) => (r.length ? i : -1))
     .filter((i) => i >= 0);
 
   // Clinical-table feature state
@@ -124,16 +139,16 @@ export default function DocumentPreview({ documents, warnings, onDownload, onRes
         </div>
       )}
 
-      {/* Low-readability report — documents whose OCR text is unreliable */}
-      {lowReadIdx.length > 0 && (
+      {/* Review report — documents the system isn't confident about */}
+      {reviewIdx.length > 0 && (
         <div className="warning-banner" style={{ background: '#fef2f2', borderColor: '#fecaca' }}>
           <span className="warning-icon">⚠</span>
           <div>
-            <strong>זוהו {lowReadIdx.length} מסמכים בקריאות נמוכה — מומלץ לאמת מול המקור:</strong>
-            {lowReadIdx.map((i) => (
+            <strong>{reviewIdx.length} מסמכים מומלצים לבדיקה ידנית מול המקור:</strong>
+            {reviewIdx.map((i) => (
               <p key={i} className="warning-line">
                 #{i + 1} · {documents[i].date || 'לא ידוע'} · {documents[i].institution || 'מוסד לא ידוע'}
-                {documents[i].isHandwritten ? ' (כתב יד)' : ''}
+                {documents[i].isHandwritten ? ' (כתב יד)' : ''} — {reviewReasons[i].join(' · ')}
               </p>
             ))}
           </div>
@@ -175,6 +190,14 @@ export default function DocumentPreview({ documents, warnings, onDownload, onRes
                       style={{ marginInlineStart: 6, background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}
                     >
                       ✍ כתב יד — אמת מול המקור
+                    </span>
+                  ) : reviewReasons[i].some((r) => r.startsWith('ללא תאריך')) ? (
+                    <span
+                      className="doc-type"
+                      title="לא זוהו תאריך/מוסד — ייתכן מקטע שנחתך מעמוד אחר; בדוק מול המקור"
+                      style={{ marginInlineStart: 6, background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}
+                    >
+                      ללא תאריך/מוסד — בדוק
                     </span>
                   ) : readability[i].level === 'partial' ? (
                     <span

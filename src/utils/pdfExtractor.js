@@ -8,6 +8,31 @@ const MIN_CHARS_PER_PAGE = 40;
 const RENDER_SCALE = 1.2;
 const JPEG_QUALITY = 0.72;
 
+// Common Hebrew words that appear in virtually any real Hebrew medical text.
+// A broken font encoding (missing/wrong ToUnicode map) yields real Hebrew
+// LETTERS scrambled into nonsense words — character counts look fine, so the
+// file passes the "isDigital" check, but the extracted text is gibberish.
+// The tell: almost none of these common words survive the scramble.
+const COMMON_HEBREW_WORDS = new Set([
+  'של', 'את', 'על', 'לא', 'עם', 'או', 'אל', 'כי', 'גם', 'זה', 'יש', 'כל',
+  'אם', 'כך', 'אך', 'רק', 'הוא', 'היא', 'אני', 'אבל', 'אחרי', 'לפני', 'ללא',
+  'יותר', 'מאוד', 'בית', 'חולים', 'בדיקה', 'טיפול', 'רופא', 'מטופל', 'תאריך',
+  'תלונה', 'ימין', 'שמאל', 'כאב', 'ללא', 'תקין', 'ביקור', 'מרפאה',
+]);
+
+// Detect a broken text layer: real Hebrew running text is full of common words,
+// scrambled/reversed text has essentially none. Returns true only with enough
+// signal (so short or non-Hebrew docs are never falsely flagged).
+function hebrewLooksGarbled(text) {
+  const words = text
+    .split(/\s+/)
+    .map((w) => w.replace(/[^א-ת]/g, '')) // keep Hebrew letters only
+    .filter((w) => w.length >= 2);                   // ignore single letters/noise
+  if (words.length < 15) return false;               // too little to judge
+  const hits = words.filter((w) => COMMON_HEBREW_WORDS.has(w)).length;
+  return hits / words.length < 0.02;                 // <2% common words → broken
+}
+
 // Keep each request well under Vercel's 4.5MB body limit (base64 + JSON overhead)
 const MAX_BATCH_BYTES = 3_300_000;
 const MAX_BATCH_PAGES = 15;
@@ -36,11 +61,18 @@ export async function extractPdfInfo(file) {
 
     const totalChars = pages.reduce((s, p) => s + p.text.length, 0);
     const avgCharsPerPage = numPages > 0 ? totalChars / numPages : 0;
-    const isDigital = avgCharsPerPage >= MIN_CHARS_PER_PAGE;
+    const hasEnoughText = avgCharsPerPage >= MIN_CHARS_PER_PAGE;
 
-    return { pages, numPages, isDigital, error: null };
+    // A PDF can have plenty of text yet a broken encoding (scrambled Hebrew).
+    // In that case the visual page is fine, so treat it as scanned → OCR the
+    // rendered pixels instead of trusting the corrupt text layer.
+    const fullText = pages.map((p) => p.text).join(' ');
+    const garbled = hasEnoughText && hebrewLooksGarbled(fullText);
+    const isDigital = hasEnoughText && !garbled;
+
+    return { pages, numPages, isDigital, garbled, error: null };
   } catch (err) {
-    return { pages: [], numPages: 0, isDigital: false, error: err.message };
+    return { pages: [], numPages: 0, isDigital: false, garbled: false, error: err.message };
   }
 }
 

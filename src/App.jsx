@@ -145,10 +145,29 @@ export default function App() {
       const units = []; // each: array of one payload item for /api/process
 
       for (const f of files) {
-        const { pages, numPages, isDigital, error: pdfErr } = await extractPdfInfo(f);
+        const { pages, numPages, isDigital, garbled } = await extractPdfInfo(f);
 
         if (isDigital) {
           units.push([{ name: f.name, type: 'digital', pages }]);
+          continue;
+        }
+
+        // Broken text layer (scrambled Hebrew): the page renders correctly, so
+        // OCR the rendered images. Skip the native-PDF path — Claude must not
+        // see the corrupt text layer, only the real pixels.
+        if (garbled) {
+          setProgressNote(`סורק ${f.name} (טקסט פגום)...`);
+          const batches = await renderPageBatches(f, numPages, (n, total) => {
+            setProgressNote(`ממיר עמודים ${n}/${total}: ${f.name}`);
+          });
+          if (batches.length === 0) {
+            const base64 = await fileToBase64(f);
+            units.push([{ name: f.name, type: 'scanned', base64 }]);
+          } else {
+            for (const b of batches) {
+              units.push([{ name: f.name, type: 'scanned_batch', pageImages: b.pageImages }]);
+            }
+          }
           continue;
         }
 

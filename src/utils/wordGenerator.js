@@ -3,6 +3,7 @@ import {
   TextRun, WidthType, AlignmentType, PageBreak,
   BorderStyle, HeadingLevel, convertInchesToTwip,
 } from 'docx';
+import { assessReadability } from './readability.js';
 
 // ─── Borders ─────────────────────────────────────────────
 const THIN  = { style: BorderStyle.SINGLE, size: 4,  color: '000000' };
@@ -99,14 +100,25 @@ function buildRecord(doc, isFirst) {
         },
       }
     ),
-    // Handwriting advisory (only when the source was handwritten)
-    ...(doc.isHandwritten
-      ? [rtl(
+    // Readability / handwriting advisory
+    ...((() => {
+      const read = assessReadability(doc.text);
+      if (read.level === 'low') {
+        return [rtl(
+          [run(`⚠ קריאות נמוכה${doc.isHandwritten ? ' (כתב יד)' : ''} — חלקים מהטקסט לא פוענחו באמינות; חובה לאמת מול המסמך המקורי.`,
+            { size: 18, bold: true, italics: true, color: '991b1b' })],
+          { spacing: { after: 120 } }
+        )];
+      }
+      if (doc.isHandwritten) {
+        return [rtl(
           [run('✍ מסמך זה כתוב בכתב יד — ייתכנו אי-דיוקים בקריאה אוטומטית; מומלץ לאמת מול המקור.',
             { size: 18, italics: true, color: '92400e' })],
           { spacing: { after: 120 } }
-        )]
-      : []),
+        )];
+      }
+      return [];
+    })()),
     // Spacer
     rtl([], { spacing: { after: 120 } }),
     // Verbatim text

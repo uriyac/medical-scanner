@@ -1,37 +1,13 @@
 import * as pdfjs from 'pdfjs-dist';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { PDFDocument } from 'pdf-lib';
+import { hebrewLooksGarbled } from './readability.js';
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 const MIN_CHARS_PER_PAGE = 40;
 const RENDER_SCALE = 2.0;   // higher DPI → markedly better OCR on faint scans / handwriting
 const JPEG_QUALITY = 0.72;
-
-// Common Hebrew words that appear in virtually any real Hebrew medical text.
-// A broken font encoding (missing/wrong ToUnicode map) yields real Hebrew
-// LETTERS scrambled into nonsense words — character counts look fine, so the
-// file passes the "isDigital" check, but the extracted text is gibberish.
-// The tell: almost none of these common words survive the scramble.
-const COMMON_HEBREW_WORDS = new Set([
-  'של', 'את', 'על', 'לא', 'עם', 'או', 'אל', 'כי', 'גם', 'זה', 'יש', 'כל',
-  'אם', 'כך', 'אך', 'רק', 'הוא', 'היא', 'אני', 'אבל', 'אחרי', 'לפני', 'ללא',
-  'יותר', 'מאוד', 'בית', 'חולים', 'בדיקה', 'טיפול', 'רופא', 'מטופל', 'תאריך',
-  'תלונה', 'ימין', 'שמאל', 'כאב', 'ללא', 'תקין', 'ביקור', 'מרפאה',
-]);
-
-// Detect a broken text layer: real Hebrew running text is full of common words,
-// scrambled/reversed text has essentially none. Returns true only with enough
-// signal (so short or non-Hebrew docs are never falsely flagged).
-function hebrewLooksGarbled(text) {
-  const words = text
-    .split(/\s+/)
-    .map((w) => w.replace(/[^א-ת]/g, '')) // keep Hebrew letters only
-    .filter((w) => w.length >= 2);                   // ignore single letters/noise
-  if (words.length < 15) return false;               // too little to judge
-  const hits = words.filter((w) => COMMON_HEBREW_WORDS.has(w)).length;
-  return hits / words.length < 0.02;                 // <2% common words → broken
-}
 
 // Keep each request well under Vercel's 4.5MB body limit (base64 + JSON overhead)
 const MAX_BATCH_BYTES = 3_300_000;

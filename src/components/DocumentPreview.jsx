@@ -3,9 +3,16 @@ import {
   generateClinicalTableDocument,
   generateSummaryDocument,
 } from '../utils/wordGenerator.js';
+import { assessReadability } from '../utils/readability.js';
 
 export default function DocumentPreview({ documents, warnings, onDownload, onReset }) {
   const [expanded, setExpanded] = useState(null);
+
+  // Objective readability of each document's OCR output (high | partial | low).
+  const readability = documents.map((d) => assessReadability(d.text));
+  const lowReadIdx = readability
+    .map((r, i) => (r.level === 'low' ? i : -1))
+    .filter((i) => i >= 0);
 
   // Clinical-table feature state
   const [clinicalRows, setClinicalRows] = useState(null);
@@ -117,6 +124,22 @@ export default function DocumentPreview({ documents, warnings, onDownload, onRes
         </div>
       )}
 
+      {/* Low-readability report — documents whose OCR text is unreliable */}
+      {lowReadIdx.length > 0 && (
+        <div className="warning-banner" style={{ background: '#fef2f2', borderColor: '#fecaca' }}>
+          <span className="warning-icon">⚠</span>
+          <div>
+            <strong>זוהו {lowReadIdx.length} מסמכים בקריאות נמוכה — מומלץ לאמת מול המקור:</strong>
+            {lowReadIdx.map((i) => (
+              <p key={i} className="warning-line">
+                #{i + 1} · {documents[i].date || 'לא ידוע'} · {documents[i].institution || 'מוסד לא ידוע'}
+                {documents[i].isHandwritten ? ' (כתב יד)' : ''}
+              </p>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Documents table */}
       <table className="doc-table">
         <thead>
@@ -137,7 +160,15 @@ export default function DocumentPreview({ documents, warnings, onDownload, onRes
                 <td className="doc-institution">{doc.institution || '—'}</td>
                 <td>
                   <span className="doc-type">{doc.visitType || '—'}</span>
-                  {doc.isHandwritten && (
+                  {readability[i].level === 'low' ? (
+                    <span
+                      className="doc-type"
+                      title={`טקסט בקריאות נמוכה (${readability[i].illegible} מילים לא ברורות) — ה-OCR אינו אמין כאן, בדוק מול המקור`}
+                      style={{ marginInlineStart: 6, background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca' }}
+                    >
+                      ⚠ {doc.isHandwritten ? 'כתב יד — ' : ''}לא קריא, בדוק ידנית
+                    </span>
+                  ) : doc.isHandwritten ? (
                     <span
                       className="doc-type"
                       title="המסמך כתוב בכתב יד — ה-OCR עלול לטעות, מומלץ לאמת מול המקור"
@@ -145,7 +176,15 @@ export default function DocumentPreview({ documents, warnings, onDownload, onRes
                     >
                       ✍ כתב יד — אמת מול המקור
                     </span>
-                  )}
+                  ) : readability[i].level === 'partial' ? (
+                    <span
+                      className="doc-type"
+                      title={`${readability[i].illegible} מילים סומנו [לא ברור]`}
+                      style={{ marginInlineStart: 6, background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}
+                    >
+                      {readability[i].illegible} מילים לא ברורות
+                    </span>
+                  ) : null}
                 </td>
                 <td>
                   <button

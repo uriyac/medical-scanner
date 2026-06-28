@@ -5,7 +5,7 @@ import { PDFDocument } from 'pdf-lib';
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 const MIN_CHARS_PER_PAGE = 40;
-const RENDER_SCALE = 1.2;
+const RENDER_SCALE = 2.0;   // higher DPI → markedly better OCR on faint scans / handwriting
 const JPEG_QUALITY = 0.72;
 
 // Common Hebrew words that appear in virtually any real Hebrew medical text.

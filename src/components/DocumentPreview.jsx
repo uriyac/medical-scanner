@@ -135,7 +135,18 @@ export default function DocumentPreview({ documents, warnings, onDownload, onRes
                 <td className="doc-index">{i + 1}</td>
                 <td className="doc-date">{doc.date || 'לא ידוע'}</td>
                 <td className="doc-institution">{doc.institution || '—'}</td>
-                <td><span className="doc-type">{doc.visitType || '—'}</span></td>
+                <td>
+                  <span className="doc-type">{doc.visitType || '—'}</span>
+                  {doc.isHandwritten && (
+                    <span
+                      className="doc-type"
+                      title="המסמך כתוב בכתב יד — ה-OCR עלול לטעות, מומלץ לאמת מול המקור"
+                      style={{ marginInlineStart: 6, background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}
+                    >
+                      ✍ כתב יד — אמת מול המקור
+                    </span>
+                  )}
+                </td>
                 <td>
                   <button
                     className={`btn-expand${expanded === i ? ' open' : ''}`}

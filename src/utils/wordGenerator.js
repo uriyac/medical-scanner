@@ -99,6 +99,14 @@ function buildRecord(doc, isFirst) {
         },
       }
     ),
+    // Handwriting advisory (only when the source was handwritten)
+    ...(doc.isHandwritten
+      ? [rtl(
+          [run('✍ מסמך זה כתוב בכתב יד — ייתכנו אי-דיוקים בקריאה אוטומטית; מומלץ לאמת מול המקור.',
+            { size: 18, italics: true, color: '92400e' })],
+          { spacing: { after: 120 } }
+        )]
+      : []),
     // Spacer
     rtl([], { spacing: { after: 120 } }),
     // Verbatim text

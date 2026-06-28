@@ -33,19 +33,25 @@ export function hebrewLooksGarbled(text) {
 // Per-document readability of OCR output.
 //   level: 'high'    — reads cleanly
 //          'partial' — some words marked [לא ברור]
-//          'low'     — mostly unreadable (garbled or heavily illegible)
-export function assessReadability(text) {
+//          'low'     — mostly unreadable (garbled, heavily illegible, or rough handwriting)
+//
+// Note on the common-word ratio: clean medical documents are mostly FORM data
+// (names, IDs, dates, institutions) with few function words, so they run only
+// ~0.07–0.13 — NOT like prose (~0.40). Mis-read cursive collapses to ~0.03. The
+// gap is narrow, so we trust the model's own signals (isHandwritten flag +
+// [לא ברור] markers) as the primary tell and use the ratio only for SEVERE
+// garble (<0.05), well below the clean-form floor. This avoids false-flagging
+// legible printed records.
+export function assessReadability(text, { isHandwritten = false } = {}) {
   const t = (text ?? '').trim();
   const illegible = (t.match(/\[לא ברור\]/g) || []).length;
   const { count, commonRatio } = hebrewWordStats(t);
   const illegibleRatio = count ? illegible / count : 0;
 
-  // Clean Hebrew medical prose runs ~0.35–0.45 common-word ratio; OCR garble
-  // (even when a few words read right) collapses to ~0.03. 0.12 sits in the
-  // wide empty gap between them — flags garble with margin, never clean text.
   let level = 'high';
-  if (count >= 15 && commonRatio < 0.12) level = 'low';        // garbled — almost no real words
-  else if (illegibleRatio >= 0.2 || illegible >= 10) level = 'low'; // heavily illegible
+  if (count >= 20 && commonRatio < 0.05) level = 'low';            // severely garbled / broken layer
+  else if (illegibleRatio >= 0.15 || illegible >= 8) level = 'low'; // model flagged much as illegible
+  else if (isHandwritten && commonRatio < 0.08) level = 'low';     // handwriting read with low quality
   else if (illegible > 0) level = 'partial';
 
   return { level, illegible, words: count, commonRatio };

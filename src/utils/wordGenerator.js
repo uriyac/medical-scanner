@@ -102,7 +102,7 @@ function buildRecord(doc, isFirst) {
     ),
     // Readability / handwriting advisory
     ...((() => {
-      const read = assessReadability(doc.text);
+      const read = assessReadability(doc.text, { isHandwritten: doc.isHandwritten });
       if (read.level === 'low') {
         return [rtl(
           [run(`⚠ קריאות נמוכה${doc.isHandwritten ? ' (כתב יד)' : ''} — חלקים מהטקסט לא פוענחו באמינות; חובה לאמת מול המסמך המקורי.`,

@@ -10,13 +10,26 @@ const GARBLED =
 const GARBLED_DIGITAL =
   'קזחט מנסע גקרשד טפלמא צבכרת דשגכמ נפתלא רקצמש בגדכת לחנמפ קרשתב מגדנכ לפצרש תכמבד נגלרק שפתמא בכדרל מנקצש גתפלכ דרבנמ קלשגת מנפרכ';
 
+// Real, perfectly-legible medical FORM text — sparse function words (names, IDs,
+// institutions) but every word is real. Must NOT be flagged as low readability.
+const CLEAN_FORM =
+  'הסתדרות מדיצינית הדסה מספר הרשומה שם המשפחה הון מרקוביץ השם הפרטי שרית שם האב יעקב שם האם רבקה שנת הלידה בית החולים האוניברסיטאי של הדסה ירושלים מספר פניה מחלקה אורתופדיה רופא מטפל גיל בקבלה אבחנה שבר';
+
 describe('assessReadability', () => {
   it('rates clean Hebrew medical prose as high', () => {
     expect(assessReadability(CLEAN).level).toBe('high');
   });
 
+  it('rates clean but form-heavy medical text as high (no false positive)', () => {
+    expect(assessReadability(CLEAN_FORM).level).toBe('high');
+  });
+
   it('rates scrambled Hebrew (no real words) as low', () => {
     expect(assessReadability(GARBLED).level).toBe('low');
+  });
+
+  it('flags rough handwriting as low when the model marked it handwritten', () => {
+    expect(assessReadability(GARBLED, { isHandwritten: true }).level).toBe('low');
   });
 
   it('rates text with a few [לא ברור] markers as partial', () => {

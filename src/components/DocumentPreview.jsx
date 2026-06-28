@@ -9,7 +9,9 @@ export default function DocumentPreview({ documents, warnings, onDownload, onRes
   const [expanded, setExpanded] = useState(null);
 
   // Objective readability of each document's OCR output (high | partial | low).
-  const readability = documents.map((d) => assessReadability(d.text));
+  const readability = documents.map((d) =>
+    assessReadability(d.text, { isHandwritten: d.isHandwritten })
+  );
 
   // Reasons a document warrants a manual check against the source.
   // A header-less fragment (e.g. a record cut across a chunk boundary) comes
@@ -17,7 +19,8 @@ export default function DocumentPreview({ documents, warnings, onDownload, onRes
   // silently merging, which could mis-attribute one provider's note to another.
   const reviewReasons = documents.map((d, i) => {
     const reasons = [];
-    if (readability[i].level === 'low') reasons.push('קריאות נמוכה');
+    if (d.isHandwritten) reasons.push('כתב יד');
+    if (readability[i].level === 'low' && !d.isHandwritten) reasons.push('קריאות נמוכה');
     const noDate = !d.date || d.date === 'לא ידוע';
     const noInst = !d.institution || d.institution === 'לא ידוע';
     if (noDate && noInst && (d.text || '').trim().length > 40) {

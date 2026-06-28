@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { generateWordDocument } from './utils/wordGenerator.js';
-import { extractPdfInfo, splitPdfBatches, renderPageBatches } from './utils/pdfExtractor.js';
+import { extractPdfInfo, splitPdfBatches, renderPageBatches, splitBase64ToPages } from './utils/pdfExtractor.js';
 import LoginPage from './components/LoginPage.jsx';
 import DocumentPreview from './components/DocumentPreview.jsx';
 
@@ -132,6 +132,30 @@ export default function App() {
     return data.documents ?? [];
   };
 
+  // Recover a failed scanned unit instead of losing its document: split it into
+  // single pages and OCR each on its own (tiny → fast → won't hit the 60s limit).
+  // Returns { ok, docs, failedPages } — ok:false if it can't be split/retried.
+  const retryUnitByPage = async (item) => {
+    let pageUnits = [];
+    if (item.type === 'scanned' && item.base64) {
+      const pages = await splitBase64ToPages(item.base64);
+      if (pages.length <= 1) return { ok: false };
+      pageUnits = pages.map((b64) => ({ name: item.name, type: 'scanned', base64: b64 }));
+    } else if (item.type === 'scanned_batch' && item.pageImages?.length > 1) {
+      pageUnits = item.pageImages.map((img) => ({ name: item.name, type: 'scanned_batch', pageImages: [img] }));
+    } else {
+      return { ok: false };
+    }
+
+    const docs = [];
+    let failedPages = 0;
+    for (const pu of pageUnits) {
+      try { docs.push(...(await postUnit([pu]))); }
+      catch { failedPages += 1; }
+    }
+    return docs.length ? { ok: true, docs, failedPages } : { ok: false };
+  };
+
   const handleProcess = async () => {
     setStatus('processing');
     setError('');
@@ -214,11 +238,21 @@ export default function App() {
       const total = units.length;
 
       const tasks = units.map((unitFiles) => async () => {
+        const item = unitFiles[0];
         try {
           const docs = await postUnit(unitFiles);
           allDocs.push(...docs);
         } catch (e) {
-          unitWarnings.push(`שגיאה בעיבוד ${unitFiles[0]?.name ?? ''}: ${e.message}`);
+          // Don't lose the document — retry page-by-page before giving up.
+          const retry = await retryUnitByPage(item);
+          if (retry.ok) {
+            allDocs.push(...retry.docs);
+            if (retry.failedPages) {
+              unitWarnings.push(`עיבוד חלקי של ${item?.name ?? ''}: ${retry.failedPages} עמ' לא עובדו — בדוק מול המקור`);
+            }
+          } else {
+            unitWarnings.push(`שגיאה בעיבוד ${item?.name ?? ''}: ${e.message}`);
+          }
         }
       });
 

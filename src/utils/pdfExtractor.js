@@ -120,6 +120,23 @@ export async function splitPdfBatches(file, pagesPerChunk = 4) {
   return chunks;
 }
 
+// Split a native sub-PDF (base64) into one base64 PDF per page. Used to RETRY a
+// failed OCR unit page-by-page so a single bad/slow page can't lose the whole
+// chunk. Returns the original (single-element) if it already has ≤1 page.
+export async function splitBase64ToPages(base64) {
+  const src = await PDFDocument.load(base64, { ignoreEncryption: true });
+  const n = src.getPageCount();
+  if (n <= 1) return [base64];
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const doc = await PDFDocument.create();
+    const [pg] = await doc.copyPages(src, [i]);
+    doc.addPage(pg);
+    out.push(await doc.saveAsBase64());
+  }
+  return out;
+}
+
 // Base64-encode a Uint8Array in chunks (avoids call-stack limits on big arrays).
 function uint8ToBase64(u8) {
   let binary = '';
